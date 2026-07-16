@@ -1,7 +1,18 @@
 """FastAPI application for PaperPilot."""
 
-from fastapi import FastAPI
+from typing import Annotated
+
+from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
+
+
+ALLOWED_CONTENT_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+}
+
+MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 
 
 class StatusResponse(BaseModel):
@@ -9,6 +20,14 @@ class StatusResponse(BaseModel):
 
     status: str
     service: str
+
+
+class DocumentInspectionResponse(BaseModel):
+    """Metadata returned after inspecting an uploaded document."""
+
+    filename: str
+    content_type: str
+    size_bytes: int
 
 
 app = FastAPI(
@@ -24,4 +43,45 @@ def get_status() -> StatusResponse:
     return StatusResponse(
         status="ok",
         service="paperpilot",
+    )
+
+
+@app.post(
+    "/documents/inspect",
+    response_model=DocumentInspectionResponse,
+)
+async def inspect_document(
+    file: Annotated[
+        UploadFile,
+        File(description="A PDF, PNG, or JPEG administrative document."),
+    ],
+) -> DocumentInspectionResponse:
+    """Validate an uploaded document and return its basic metadata."""
+
+    content_type = file.content_type or "application/octet-stream"
+
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported file type. Use PDF, PNG, or JPEG.",
+        )
+
+    contents = await file.read(MAX_FILE_SIZE_BYTES + 1)
+
+    if not contents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is empty.",
+        )
+
+    if len(contents) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="The uploaded file exceeds the 5 MB limit.",
+        )
+
+    return DocumentInspectionResponse(
+        filename=file.filename or "unnamed",
+        content_type=content_type,
+        size_bytes=len(contents),
     )
