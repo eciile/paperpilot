@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from paperpilot.main import app
+from paperpilot.main import MAX_FILE_SIZE_BYTES, app
 
 
 client = TestClient(app)
@@ -66,4 +66,22 @@ def test_reject_empty_document() -> None:
     assert response.status_code == 400
     assert response.json() == {
         "detail": "The uploaded file is empty."
+    }
+
+def test_reject_oversized_document() -> None:
+    """A document exceeding the size limit should be rejected."""
+    content = b"x"*(MAX_FILE_SIZE_BYTES + 1)
+    response = client.post(
+        "/documents/inspect",
+        files={
+            "file": (
+                "large.pdf",
+                content,
+                "application/pdf"
+            )
+        },
+    )
+    assert response.status_code == 413
+    assert response.json() == {
+        "detail": "The uploaded file exceeds the 5 MB limit."
     }
