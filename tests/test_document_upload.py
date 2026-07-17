@@ -10,7 +10,7 @@ client = TestClient(app)
 
 def test_inspect_png_document() -> None:
     """A supported PNG upload should return its metadata."""
-    content = b"example image content"
+    content = b"\x89PNG\r\n\x1a\n" + b"example image content"
 
     response = client.post(
         "/documents/inspect",
@@ -84,4 +84,21 @@ def test_reject_oversized_document() -> None:
     assert response.status_code == 413
     assert response.json() == {
         "detail": "The uploaded file exceeds the 5 MB limit."
+    }
+def test_reject_content_that_does_not_match_declared_type() -> None:
+    """A fake PDF containing plain text should be rejected."""
+    response = client.post(
+        "/documents/inspect",
+        files={
+            "file": (
+                "fake-invoice.pdf",
+                b"This is plain text, not a PDF.",
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "File content does not match its declared type."
     }
