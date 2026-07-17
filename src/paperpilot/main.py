@@ -4,7 +4,10 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from paperpilot.document_validation import content_matches_type
+from paperpilot.document_validation import (
+    calculate_document_fingerprint,
+    content_matches_type,
+)
 
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",
@@ -28,6 +31,7 @@ class DocumentInspectionResponse(BaseModel):
     filename: str
     content_type: str
     size_bytes: int
+    sha256: str
 
 
 app = FastAPI(
@@ -90,4 +94,5 @@ async def inspect_document(
         filename=file.filename or "unnamed",
         content_type=content_type,
         size_bytes=len(contents),
+        sha256=calculate_document_fingerprint(contents),
     )
