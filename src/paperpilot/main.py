@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
-
+from paperpilot.document_validation import content_matches_type
 
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",
@@ -78,6 +78,12 @@ async def inspect_document(
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="The uploaded file exceeds the 5 MB limit.",
+        )
+
+    if not content_matches_type(contents, content_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File content does not match its declared type.",
         )
 
     return DocumentInspectionResponse(
