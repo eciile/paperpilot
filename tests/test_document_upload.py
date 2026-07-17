@@ -3,7 +3,7 @@
 from fastapi.testclient import TestClient
 
 from paperpilot.main import MAX_FILE_SIZE_BYTES, app
-
+from hashlib import sha256
 
 client = TestClient(app)
 
@@ -28,6 +28,7 @@ def test_inspect_png_document() -> None:
         "filename": "receipt.png",
         "content_type": "image/png",
         "size_bytes": len(content),
+        "sha256": sha256(content).hexdigest(),
     }
 
 
