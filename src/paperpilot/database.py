@@ -4,7 +4,7 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from paperpilot.models import Base
-
+from collections.abc import Generator
 
 DATABASE_URL = "sqlite:///./paperpilot.db"
 
@@ -33,6 +33,10 @@ SessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
+def get_database_session() -> Generator[Session, None, None]:
+    """provide one database session for an API request"""
+    with SessionLocal() as session:
+        yield session
 
 def initialize_database(
     database_engine: Engine = engine,

@@ -4,11 +4,49 @@ from fastapi.testclient import TestClient
 
 from paperpilot.main import MAX_FILE_SIZE_BYTES, app
 from hashlib import sha256
+from collections.abc import Generator
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
+from paperpilot.database import get_database_session
+from paperpilot.models import Base, DocumentRecord
 
 client = TestClient(app)
 
+@pytest.fixture
+def database_session() -> Generator[Session, None, None]:
+    """Provide an isolated in-memory database session."""
+    test_engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(test_engine)
 
-def test_inspect_png_document() -> None:
+    with Session(test_engine) as session:
+        yield session
+
+    test_engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def override_database_session(
+    database_session: Session,
+) -> Generator[None, None, None]:
+    """Make API requests use the isolated test database."""
+
+    def get_test_session() -> Generator[Session, None, None]:
+        yield database_session
+
+    app.dependency_overrides[get_database_session] = get_test_session
+
+    yield
+
+    app.dependency_overrides.clear()
+
+def test_inspect_png_document(database_session:Session,) -> None:
     """A supported PNG upload should return its metadata."""
     content = b"\x89PNG\r\n\x1a\n" + b"example image content"
 
@@ -24,12 +62,28 @@ def test_inspect_png_document() -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {
+
+    response_data = response.json()
+    document_id = response_data.pop("document_id")
+
+    assert document_id > 0
+    assert response_data == {
         "filename": "receipt.png",
         "content_type": "image/png",
         "size_bytes": len(content),
         "sha256": sha256(content).hexdigest(),
     }
+
+    stored_record = database_session.get(
+        DocumentRecord,
+        document_id,
+    )
+
+    assert stored_record is not None
+    assert stored_record.filename == "receipt.png"
+    assert stored_record.content_type == "image/png"
+    assert stored_record.size_bytes == len(content)
+    assert stored_record.sha256 == sha256(content).hexdigest()
 
 
 def test_reject_unsupported_document_type() -> None:
