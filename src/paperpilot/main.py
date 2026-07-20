@@ -2,12 +2,21 @@
 
 from typing import Annotated
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, UploadFile, status, Depends
 from pydantic import BaseModel
+from paperpilot.database import (
+    get_database_session,
+    initialize_database,
+)
 from paperpilot.document_validation import (
     calculate_document_fingerprint,
     content_matches_type,
 )
+from paperpilot.document_repository import create_document_record
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from sqlalchemy.orm import Session
+
 
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",
@@ -27,17 +36,24 @@ class StatusResponse(BaseModel):
 
 class DocumentInspectionResponse(BaseModel):
     """Metadata returned after inspecting an uploaded document."""
-
+    document_id: int
     filename: str
     content_type: str
     size_bytes: int
     sha256: str
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Initialize application resources."""
+    initialize_database()
+    yield
 
 
 app = FastAPI(
     title="PaperPilot",
     version="0.1.0",
     description="API for the PaperPilot administrative document assistant.",
+    lifespan=lifespan
 )
 
 
@@ -58,6 +74,10 @@ async def inspect_document(
     file: Annotated[
         UploadFile,
         File(description="A PDF, PNG, or JPEG administrative document."),
+    ],
+    session: Annotated[
+        Session,
+        Depends(get_database_session),
     ],
 ) -> DocumentInspectionResponse:
     """Validate an uploaded document and return its basic metadata."""
@@ -90,9 +110,18 @@ async def inspect_document(
             detail="File content does not match its declared type.",
         )
 
-    return DocumentInspectionResponse(
-        filename=file.filename or "unnamed",
+    fingerprint = calculate_document_fingerprint(contents)
+    record = create_document_record(
+        session,
+        filename=file.filename or"unnamed",
         content_type=content_type,
         size_bytes=len(contents),
-        sha256=calculate_document_fingerprint(contents),
+        sha256=fingerprint,
+    )
+    return DocumentInspectionResponse(
+        document_id=record.id,
+        filename=record.filename,
+        content_type=record.content_type,
+        size_bytes=record.size_bytes,
+        sha256=record.sha256,
     )
