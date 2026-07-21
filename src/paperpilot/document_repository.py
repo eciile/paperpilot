@@ -30,7 +30,7 @@ def create_document_record(
     session.add(record)
 
     try:
-        session.commit()
+        session.flush()
     except IntegrityError as exc:
         session.rollback()
 
@@ -38,8 +38,6 @@ def create_document_record(
             raise DuplicateDocumentError from exc
 
         raise
-
-    session.refresh(record)
 
     return record
 
