@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, status, Depends
+from fastapi import FastAPI, File, HTTPException, UploadFile, status, Depends, Path, Query
 from pydantic import BaseModel
 from paperpilot.database import (
     get_database_session,
@@ -12,7 +12,18 @@ from paperpilot.document_validation import (
     calculate_document_fingerprint,
     content_matches_type,
 )
-from paperpilot.document_repository import create_document_record
+from paperpilot.document_repository import (
+    DuplicateDocumentError,
+    create_document_record,
+    get_document_by_id,
+    list_document_records,
+)
+from paperpilot.schemas import (
+    DocumentInspectionResponse,
+    DocumentListResponse,
+    DocumentResponse,
+    StatusResponse,
+)
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
@@ -27,20 +38,7 @@ ALLOWED_CONTENT_TYPES = {
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 
 
-class StatusResponse(BaseModel):
-    """Response returned by the status endpoint."""
 
-    status: str
-    service: str
-
-
-class DocumentInspectionResponse(BaseModel):
-    """Metadata returned after inspecting an uploaded document."""
-    document_id: int
-    filename: str
-    content_type: str
-    size_bytes: int
-    sha256: str
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -111,13 +109,19 @@ async def inspect_document(
         )
 
     fingerprint = calculate_document_fingerprint(contents)
-    record = create_document_record(
-        session,
-        filename=file.filename or"unnamed",
-        content_type=content_type,
-        size_bytes=len(contents),
-        sha256=fingerprint,
-    )
+    try:
+        record = create_document_record(
+            session,
+            filename=file.filename or "unnamed",
+            content_type=content_type,
+            size_bytes=len(contents),
+            sha256=fingerprint,
+        )
+    except DuplicateDocumentError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This document has already been uploaded.",
+        ) from exc
     return DocumentInspectionResponse(
         document_id=record.id,
         filename=record.filename,
@@ -125,3 +129,78 @@ async def inspect_document(
         size_bytes=record.size_bytes,
         sha256=record.sha256,
     )
+
+@app.get(
+    "/documents",
+    response_model=DocumentListResponse,
+)
+def get_documents(
+    session: Annotated[
+        Session,
+        Depends(get_database_session),
+    ],
+    offset: Annotated[
+        int,
+        Query(
+            ge=0,
+            description="Number of documents to skip.",
+        ),
+    ] = 0,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=100,
+            description="Maximum number of documents to return.",
+        ),
+    ] = 20,
+) -> DocumentListResponse:
+    """Return a paginated page of stored documents."""
+    records = list_document_records(
+        session,
+        offset=offset,
+        limit=limit,
+    )
+
+    items = [
+        DocumentResponse.from_record(record)
+        for record in records
+    ]
+
+    return DocumentListResponse(
+        items=items,
+        offset=offset,
+        limit=limit,
+        returned=len(items),
+    )
+
+@app.get(
+    "/documents/{document_id}",
+    response_model=DocumentResponse,
+)
+def get_document(
+    document_id: Annotated[
+        int,
+        Path(
+            gt=0,
+            description="Database ID of the requested document.",
+        ),
+    ],
+    session: Annotated[
+        Session,
+        Depends(get_database_session),
+    ],
+) -> DocumentResponse:
+    """Return one stored document by ID."""
+    record = get_document_by_id(
+        session,
+        document_id,
+    )
+
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found.",
+        )
+
+    return DocumentResponse.from_record(record)
