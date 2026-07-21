@@ -45,6 +45,7 @@ def test_create_document_record_persists_metadata(
             size_bytes=42_000,
             sha256="a" * 64,
         )
+        session.commit()
         created_id = created_record.id
 
     with Session(test_engine) as session:
@@ -80,7 +81,7 @@ def test_get_document_by_sha256_returns_matching_document(
             size_bytes=500,
             sha256="b" * 64,
         )
-
+        session.commit()
         stored_record = get_document_by_sha256(
             session,
             created_record.sha256,
@@ -107,6 +108,7 @@ def test_list_document_records_applies_ordering_and_pagination(
                 size_bytes=index * 1_000,
                 sha256=str(index) * 64,
             )
+            session.commit()
 
         first_page = list_document_records(
             session,
@@ -144,7 +146,7 @@ def test_duplicate_fingerprint_raises_duplicate_error(
             size_bytes=1_000,
             sha256="c" * 64,
         )
-
+        session.commit()
         with pytest.raises(DuplicateDocumentError):
             create_document_record(
                 session,

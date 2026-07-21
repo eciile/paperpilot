@@ -8,11 +8,13 @@ from sqlalchemy.orm import Session
 
 from paperpilot.main import MAX_FILE_SIZE_BYTES
 from paperpilot.models import DocumentRecord
-
+from pathlib import Path
+from paperpilot.document_storage import get_document_path
 
 def test_inspect_png_document(
     client: TestClient,
     database_session: Session,
+    storage_root: Path,
 ) -> None:
     """A supported PNG upload should be persisted and returned."""
     content = b"\x89PNG\r\n\x1a\n" + b"example image content"
@@ -53,6 +55,14 @@ def test_inspect_png_document(
     assert stored_record.sha256 == sha256(content).hexdigest()
     assert stored_record.created_at is not None
 
+    stored_path = get_document_path(
+        fingerprint=sha256(content).hexdigest(),
+        content_type="image/png",
+        storage_root=storage_root,
+    )
+
+    assert stored_path.exists()
+    assert stored_path.read_bytes() == content
 
 def test_reject_unsupported_document_type(
     client: TestClient,

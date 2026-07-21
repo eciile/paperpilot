@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status, Depends, Path, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from paperpilot.database import (
     get_database_session,
@@ -14,7 +15,6 @@ from paperpilot.document_validation import (
 )
 from paperpilot.document_repository import (
     DuplicateDocumentError,
-    create_document_record,
     get_document_by_id,
     list_document_records,
 )
@@ -24,10 +24,19 @@ from paperpilot.schemas import (
     DocumentResponse,
     StatusResponse,
 )
+from paperpilot.document_service import (
+    StoredDocumentMissingError,
+    get_stored_document_path,
+    register_document,
+)
+from paperpilot.document_storage import (
+    DocumentStorageError,
+    get_storage_root,
+)
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
-
+from pathlib import Path
 
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",
@@ -77,6 +86,10 @@ async def inspect_document(
         Session,
         Depends(get_database_session),
     ],
+    storage_root: Annotated[
+        Path,
+        Depends(get_storage_root),
+    ],
 ) -> DocumentInspectionResponse:
     """Validate an uploaded document and return its basic metadata."""
 
@@ -110,17 +123,23 @@ async def inspect_document(
 
     fingerprint = calculate_document_fingerprint(contents)
     try:
-        record = create_document_record(
+        record = register_document(
             session,
-            filename=file.filename or "unnamed",
+            filename=file.filename,
             content_type=content_type,
-            size_bytes=len(contents),
-            sha256=fingerprint,
+            content=contents,
+            fingerprint=fingerprint,
+            storage_root=storage_root,
         )
     except DuplicateDocumentError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This document has already been uploaded.",
+        ) from exc
+    except DocumentStorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The document could not be stored.",
         ) from exc
     return DocumentInspectionResponse(
         document_id=record.id,
@@ -204,3 +223,60 @@ def get_document(
         )
 
     return DocumentResponse.from_record(record)
+@app.get(
+    "/documents/{document_id}/download",
+    response_class=FileResponse,
+    responses={
+        404: {
+            "description": "Document metadata was not found.",
+        },
+        410: {
+            "description": "The stored document file is missing.",
+        },
+    },
+)
+def download_document(
+    document_id: Annotated[
+        int,
+        Path(
+            gt=0,
+            description="Database ID of the document to download.",
+        ),
+    ],
+    session: Annotated[
+        Session,
+        Depends(get_database_session),
+    ],
+    storage_root: Annotated[
+        Path,
+        Depends(get_storage_root),
+    ],
+) -> FileResponse:
+    """Download the original contents of a stored document."""
+    record = get_document_by_id(
+        session,
+        document_id,
+    )
+
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found.",
+        )
+
+    try:
+        stored_path = get_stored_document_path(
+            record,
+            storage_root=storage_root,
+        )
+    except StoredDocumentMissingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="The stored document file is no longer available.",
+        ) from exc
+
+    return FileResponse(
+        path=stored_path,
+        media_type=record.content_type,
+        filename=record.filename,
+    )
