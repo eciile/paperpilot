@@ -31,3 +31,9 @@ By default, PaperPilot stores uploaded files under:
 
 ```text
 data/documents/
+
+## Starting Uvicorn
+
+py -m pip install -e ".[dev]"
+alembic upgrade head
+uvicorn paperpilot.main:app --reload

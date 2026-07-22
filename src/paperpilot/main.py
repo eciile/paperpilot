@@ -33,8 +33,6 @@ from paperpilot.document_storage import (
     DocumentStorageError,
     get_storage_root,
 )
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 from pathlib import Path
 
@@ -47,20 +45,10 @@ ALLOWED_CONTENT_TYPES = {
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 
 
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """Initialize application resources."""
-    initialize_database()
-    yield
-
-
 app = FastAPI(
     title="PaperPilot",
     version="0.1.0",
     description="API for the PaperPilot administrative document assistant.",
-    lifespan=lifespan
 )
 
 
