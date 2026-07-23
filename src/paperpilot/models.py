@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    JSON
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -28,6 +29,13 @@ class OcrStatus(StrEnum):
     """Possible states of OCR processing attempts."""
 
     PENDING = "pending"
+    PROCESSING = "processing"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+class ExtractionStatus(StrEnum):
+    """Possible states of a structured extraction attempt."""
+
     PROCESSING = "processing"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -112,6 +120,92 @@ class OcrResult(Base):
     average_confidence: Mapped[float | None] = mapped_column(
         Float,
         nullable=True,
+    )
+
+    processing_time_ms: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+
+    error_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+    )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+class ExtractionResult(Base):
+    """Persisted structured extraction attempt."""
+
+    __tablename__ = "extraction_results"
+
+    __table_args__ = (
+        CheckConstraint(
+            (
+                "processing_time_ms IS NULL "
+                "OR processing_time_ms >= 0"
+            ),
+            name="ck_extraction_results_processing_time_ms",
+        ),
+        Index(
+            "ix_extraction_results_document_created_at",
+            "document_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "documents.id",
+            ondelete="CASCADE",
+        ),
+    )
+
+    ocr_result_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "ocr_results.id",
+            ondelete="CASCADE",
+        ),
+    )
+
+    status: Mapped[ExtractionStatus] = mapped_column(
+        SqlEnum(
+            ExtractionStatus,
+            name="extraction_status",
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            values_callable=lambda enum_type: [
+                member.value
+                for member in enum_type
+            ],
+        ),
+        default=ExtractionStatus.PROCESSING,
+        index=True,
+    )
+
+    extractor: Mapped[str] = mapped_column(
+        String(100),
+    )
+
+    schema_version: Mapped[str] = mapped_column(
+        String(20),
+    )
+
+    extracted_data: Mapped[dict[str, object] | None] = (
+        mapped_column(
+            JSON,
+            nullable=True,
+        )
     )
 
     processing_time_ms: Mapped[int | None] = mapped_column(
