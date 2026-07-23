@@ -1,11 +1,9 @@
 """API response schemas for PaperPilot."""
 
 from datetime import datetime
-
 from pydantic import BaseModel
-
 from paperpilot.models import DocumentRecord
-
+from paperpilot.models import OcrStatus
 
 class StatusResponse(BaseModel):
     """Response returned by the status endpoint."""
@@ -57,3 +55,17 @@ class DocumentListResponse(BaseModel):
     offset: int
     limit: int
     returned: int
+
+class OcrResultResponse(BaseModel):
+    """Public representation of one OCR processing result."""
+
+    ocr_result_id: int
+    document_id: int
+    status: OcrStatus
+    engine: str
+    text: str | None
+    average_confidence: float | None
+    processing_time_ms: int | None
+    error_message: str | None
+    created_at: datetime
+    completed_at: datetime | None
