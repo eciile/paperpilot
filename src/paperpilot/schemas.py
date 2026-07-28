@@ -4,6 +4,10 @@ from datetime import datetime
 from pydantic import BaseModel
 from paperpilot.models import DocumentRecord
 from paperpilot.models import OcrStatus
+from paperpilot.extraction_schemas import (
+    FinancialDocumentExtractionV1,
+)
+from paperpilot.models import ExtractionStatus
 
 class StatusResponse(BaseModel):
     """Response returned by the status endpoint."""
@@ -65,6 +69,21 @@ class OcrResultResponse(BaseModel):
     engine: str
     text: str | None
     average_confidence: float | None
+    processing_time_ms: int | None
+    error_message: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+class ExtractionResultResponse(BaseModel):
+    """Public representation of a structured extraction attempt."""
+
+    extraction_result_id: int
+    document_id: int
+    ocr_result_id: int
+    status: ExtractionStatus
+    extractor: str
+    schema_version: str
+    extracted_data: FinancialDocumentExtractionV1 | None
     processing_time_ms: int | None
     error_message: str | None
     created_at: datetime

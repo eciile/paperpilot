@@ -109,3 +109,65 @@ Remove the environment variable afterward:
 ```powershell
 Remove-Item Env:PAPERPILOT_OCR_TEST_FILE
 ```
+## Structured extraction
+
+PaperPilot can convert successful OCR text into validated financial document
+data.
+
+The extraction schema currently supports:
+
+- document type
+- supplier or merchant name
+- document number
+- issue date
+- due date
+- currency
+- subtotal
+- tax
+- total
+
+Missing information is returned as `null`. Structured output is validated before
+it is persisted.
+
+Install the optional extraction dependencies:
+
+```powershell
+python -m pip install -e ".[dev,extraction]"
+```
+
+Run OCR before extraction:
+
+```http
+POST /documents/{document_id}/ocr
+```
+
+Run structured extraction:
+
+```http
+POST /documents/{document_id}/extract
+```
+
+Explicitly create another attempt:
+
+```http
+POST /documents/{document_id}/extract?allow_reprocess=true
+```
+
+Retrieve the latest extraction result:
+
+```http
+GET /documents/{document_id}/extraction
+```
+
+Standard automated tests use a fake extractor and do not require Ollama.
+
+To run the optional real-model smoke test:
+
+```powershell
+$env:PAPERPILOT_OLLAMA_SMOKE = "1"
+$env:PAPERPILOT_OLLAMA_MODEL = "qwen2.5:7b"
+
+python -m pytest `
+  tests/integration/test_ollama_extraction_smoke.py `
+  -v -s
+```

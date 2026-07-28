@@ -20,7 +20,14 @@ from paperpilot.ocr_engine import (
     OcrOutput,
     build_ocr_output,
 )
-
+from paperpilot.extraction_dependencies import (
+    get_structured_extractor,
+)
+from paperpilot.extraction_schemas import (
+    FinancialDocumentExtractionV1,
+    FinancialDocumentType,
+)
+from paperpilot.extractor import ExtractionError
 
 
 class StubOcrEngine:
@@ -62,6 +69,44 @@ class StubOcrEngine:
             ]
         )
 
+class StubStructuredExtractor:
+    """Configurable structured extractor used by API tests."""
+
+    def __init__(self) -> None:
+        """Create a successful deterministic extractor."""
+        self.name = "stub-extractor"
+        self.supplier_name = "Example Telecom"
+        self.document_number = "INV-42"
+        self.currency = "EUR"
+        self.total = "42.00"
+        self.error_message: str | None = None
+        self.call_count = 0
+
+    def extract(
+        self,
+        ocr_text: str,
+    ) -> FinancialDocumentExtractionV1:
+        """Return deterministic data or simulate a failure."""
+        self.call_count += 1
+
+        assert ocr_text.strip()
+
+        if self.error_message is not None:
+            raise ExtractionError(self.error_message)
+
+        return FinancialDocumentExtractionV1(
+            document_type=FinancialDocumentType.INVOICE,
+            supplier_name=self.supplier_name,
+            document_number=self.document_number,
+            currency=self.currency,
+            total=self.total,
+        )
+
+@pytest.fixture
+def structured_extractor() -> StubStructuredExtractor:
+    """Provide a deterministic extractor for API tests."""
+    return StubStructuredExtractor()
+
 @pytest.fixture
 def ocr_engine() -> StubOcrEngine:
     """Provide a deterministic OCR engine for API tests."""
@@ -87,6 +132,7 @@ def client(
     database_session: Session,
     storage_root: Path,
     ocr_engine: StubOcrEngine,
+    structured_extractor: StubStructuredExtractor,
 ) -> Generator[TestClient, None, None]:
     """Provide an API client using isolated test resources."""
 
@@ -98,7 +144,8 @@ def client(
 
     def get_test_ocr_engine() -> StubOcrEngine:
         return ocr_engine
-
+    def get_test_structured_extractor() -> StubStructuredExtractor:
+        return structured_extractor
     app.dependency_overrides[get_database_session] = (
         get_test_session
     )
@@ -107,6 +154,9 @@ def client(
     )
     app.dependency_overrides[get_ocr_engine] = (
         get_test_ocr_engine
+    )
+    app.dependency_overrides[get_structured_extractor] = (
+        get_test_structured_extractor
     )
 
     test_client = TestClient(app)

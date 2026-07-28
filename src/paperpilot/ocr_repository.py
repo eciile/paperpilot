@@ -87,3 +87,23 @@ def mark_ocr_result_failed(
     session.flush()
 
     return result
+
+def get_latest_successful_ocr_result(
+    session: Session,
+    document_id: int,
+) -> OcrResult | None:
+    """Return the newest successful OCR result for a document."""
+    statement = (
+        select(OcrResult)
+        .where(
+            OcrResult.document_id == document_id,
+            OcrResult.status == OcrStatus.SUCCEEDED,
+        )
+        .order_by(
+            OcrResult.created_at.desc(),
+            OcrResult.id.desc(),
+        )
+        .limit(1)
+    )
+
+    return session.scalar(statement)
