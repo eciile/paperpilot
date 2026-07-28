@@ -54,11 +54,15 @@ from paperpilot.extraction_service import (
 from paperpilot.extractor import StructuredExtractor
 from paperpilot.models import (
     ExtractionResult,
+    ExtractionStatus,
     OcrResult,
 )
 from paperpilot.ocr_dependencies import get_ocr_engine
 from paperpilot.ocr_engine import OcrEngine
-from paperpilot.ocr_repository import get_latest_ocr_result
+from paperpilot.ocr_repository import (
+    get_latest_ocr_result,
+    get_latest_successful_ocr_result,
+)
 from paperpilot.ocr_service import (
     OcrAlreadyProcessedError,
     OcrProcessingError,
@@ -68,6 +72,7 @@ from paperpilot.ocr_service import (
 from paperpilot.schemas import (
     DocumentInspectionResponse,
     DocumentListResponse,
+    DocumentProcessingResponse,
     DocumentResponse,
     ExtractionResultResponse,
     OcrResultResponse,
@@ -719,3 +724,89 @@ def read_document_extraction(
         )
 
     return build_extraction_result_response(result)
+
+@app.post(
+    "/documents/{document_id}/process",
+    response_model=DocumentProcessingResponse,
+)
+def process_document(
+    document_id: Annotated[
+        int,
+        PathParameter(
+            gt=0,
+            description="Database ID of the document to process.",
+        ),
+    ],
+    session: Annotated[
+        Session,
+        Depends(get_database_session),
+    ],
+    storage_root: Annotated[
+        FileSystemPath,
+        Depends(get_storage_root),
+    ],
+    ocr_engine: Annotated[
+        OcrEngine,
+        Depends(get_ocr_engine),
+    ],
+    extractor: Annotated[
+        StructuredExtractor,
+        Depends(get_structured_extractor),
+    ],
+) -> DocumentProcessingResponse:
+    """Run OCR and structured extraction for one document."""
+    document = get_document_by_id(
+        session,
+        document_id,
+    )
+
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found.",
+        )
+
+    ocr_result = get_latest_successful_ocr_result(
+        session,
+        document_id,
+    )
+
+    if ocr_result is None:
+        ocr_response = run_document_ocr(
+            document_id=document_id,
+            session=session,
+            storage_root=storage_root,
+            ocr_engine=ocr_engine,
+        )
+    else:
+        ocr_response = build_ocr_result_response(
+            ocr_result
+        )
+
+    extraction_result = get_latest_extraction_result(
+        session,
+        document_id,
+    )
+
+    if (
+        extraction_result is not None
+        and extraction_result.status
+        is ExtractionStatus.SUCCEEDED
+    ):
+        extraction_response = (
+            build_extraction_result_response(
+                extraction_result
+            )
+        )
+    else:
+        extraction_response = run_document_extraction(
+            document_id=document_id,
+            session=session,
+            extractor=extractor,
+        )
+
+    return DocumentProcessingResponse(
+        document_id=document_id,
+        ocr=ocr_response,
+        extraction=extraction_response,
+    )

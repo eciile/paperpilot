@@ -88,3 +88,10 @@ class ExtractionResultResponse(BaseModel):
     error_message: str | None
     created_at: datetime
     completed_at: datetime | None
+
+class DocumentProcessingResponse(BaseModel):
+    """Combined OCR and structured extraction response."""
+
+    document_id: int
+    ocr: OcrResultResponse
+    extraction: ExtractionResultResponse
