@@ -140,7 +140,16 @@ uvicorn paperpilot.main:app --reload
 Local database files and uploaded documents are excluded from Git.
 
 ## API overview
+### Process a document in one request
 
+Run OCR followed by structured extraction:
+
+```http
+POST /documents/{document_id}/process
+```
+
+PaperPilot reuses existing successful OCR and extraction results, so repeating the
+request does not create unnecessary processing attempts.
 ### Service status
 
 ```http
