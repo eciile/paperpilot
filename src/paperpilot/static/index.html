@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+    <title>PaperPilot</title>
+
+    <style>
+        :root {
+            color-scheme: light;
+            --background: #f5f7fb;
+            --surface: #ffffff;
+            --border: #dfe3eb;
+            --text: #182230;
+            --muted: #667085;
+            --primary: #3157d5;
+            --primary-dark: #2444ad;
+            --success: #087443;
+            --success-background: #ecfdf3;
+            --error: #b42318;
+            --error-background: #fef3f2;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 40px 20px;
+            background: var(--background);
+            color: var(--text);
+            font-family:
+                Inter,
+                system-ui,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+            line-height: 1.5;
+        }
+
+        main {
+            width: 100%;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        header {
+            margin-bottom: 28px;
+        }
+
+        header h1 {
+            margin-bottom: 6px;
+            font-size: 2rem;
+        }
+
+        header p {
+            margin-bottom: 0;
+            color: var(--muted);
+        }
+
+        .panel {
+            padding: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(16, 24, 40, 0.05);
+        }
+
+        form {
+            display: grid;
+            gap: 16px;
+        }
+
+        label {
+            font-weight: 600;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        button {
+            width: fit-content;
+            padding: 11px 18px;
+            color: #ffffff;
+            font: inherit;
+            font-weight: 600;
+            background: var(--primary);
+            border: 0;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        button:disabled {
+            cursor: wait;
+            opacity: 0.65;
+        }
+
+        #status-message {
+            margin: 18px 0 0;
+            padding: 12px 14px;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+
+        #status-message:empty {
+            display: none;
+        }
+
+        #status-message.processing {
+            color: var(--primary-dark);
+            background: #eef2ff;
+        }
+
+        #status-message.success {
+            color: var(--success);
+            background: var(--success-background);
+        }
+
+        #status-message.error {
+            color: var(--error);
+            background: var(--error-background);
+        }
+
+        #result {
+            margin-top: 24px;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .result-header h2 {
+            margin-bottom: 0;
+        }
+
+        .badge {
+            padding: 5px 10px;
+            color: var(--success);
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: capitalize;
+            background: var(--success-background);
+            border-radius: 999px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .field {
+            min-height: 82px;
+            padding: 14px;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+        }
+
+        .field-label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--muted);
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .field-value {
+            font-size: 1rem;
+            font-weight: 600;
+            overflow-wrap: anywhere;
+        }
+
+        .amounts {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 14px;
+        }
+
+        .amount {
+            padding: 18px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+        }
+
+        .amount.total {
+            border-color: var(--primary);
+        }
+
+        .amount .field-value {
+            font-size: 1.25rem;
+        }
+
+        .metadata {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin: 20px 0 0;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        details {
+            margin-top: 18px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+        }
+
+        summary {
+            padding: 14px 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        details pre {
+            margin: 0;
+            padding: 16px;
+            overflow-x: auto;
+            color: var(--text);
+            background: #f8fafc;
+            border-top: 1px solid var(--border);
+            border-radius: 0 0 9px 9px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 650px) {
+            body {
+                padding: 24px 14px;
+            }
+
+            .summary-grid,
+            .amounts {
+                grid-template-columns: 1fr;
+            }
+
+            .result-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <header>
+            <h1>PaperPilot</h1>
+            <p>
+                Upload a financial document to run OCR and extract
+                structured information using a local language model.
+            </p>
+        </header>
+
+        <section class="panel">
+            <form id="document-form">
+                <label for="document-file">
+                    Select a PDF, PNG, or JPEG document
+                </label>
+
+                <input
+                    id="document-file"
+                    name="file"
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    required
+                >
+
+                <button id="submit-button" type="submit">
+                    Process document
+                </button>
+            </form>
+
+            <p
+                id="status-message"
+                role="status"
+                aria-live="polite"
+            ></p>
+        </section>
+
+        <section id="result" class="panel" hidden>
+            <div class="result-header">
+                <h2>Document summary</h2>
+                <span id="result-status" class="badge"></span>
+            </div>
+
+            <div class="summary-grid">
+                <div class="field">
+                    <span class="field-label">Supplier</span>
+                    <span id="supplier-name" class="field-value"></span>
+                </div>
+
+                <div class="field">
+                    <span class="field-label">Document type</span>
+                    <span id="document-type" class="field-value"></span>
+                </div>
+
+                <div class="field">
+                    <span class="field-label">Document number</span>
+                    <span id="document-number" class="field-value"></span>
+                </div>
+
+                <div class="field">
+                    <span class="field-label">Issue date</span>
+                    <span id="issue-date" class="field-value"></span>
+                </div>
+
+                <div class="field">
+                    <span class="field-label">Due date</span>
+                    <span id="due-date" class="field-value"></span>
+                </div>
+
+                <div class="field">
+                    <span class="field-label">Currency</span>
+                    <span id="currency" class="field-value"></span>
+                </div>
+            </div>
+
+            <div class="amounts">
+                <div class="amount">
+                    <span class="field-label">Subtotal</span>
+                    <span id="subtotal" class="field-value"></span>
+                </div>
+
+                <div class="amount">
+                    <span class="field-label">Tax</span>
+                    <span id="tax" class="field-value"></span>
+                </div>
+
+                <div class="amount total">
+                    <span class="field-label">Total</span>
+                    <span id="total" class="field-value"></span>
+                </div>
+            </div>
+
+            <div class="metadata">
+                <span id="document-id"></span>
+                <span id="ocr-engine"></span>
+                <span id="ocr-time"></span>
+                <span id="extraction-time"></span>
+            </div>
+
+            <details>
+                <summary>View OCR text</summary>
+                <pre id="ocr-content"></pre>
+            </details>
+
+            <details>
+                <summary>View raw API response</summary>
+                <pre id="raw-response"></pre>
+            </details>
+        </section>
+    </main>
+
+    <script>
+        const form = document.getElementById("document-form");
+        const fileInput = document.getElementById("document-file");
+        const submitButton = document.getElementById("submit-button");
+        const statusMessage = document.getElementById("status-message");
+        const resultSection = document.getElementById("result");
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showError("Select a document first.");
+                return;
+            }
+
+            setProcessingState("Uploading document...");
+            resultSection.hidden = true;
+
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+
+                const uploadResponse = await fetch(
+                    "/documents/inspect",
+                    {
+                        method: "POST",
+                        body: formData,
+                    }
+                );
+
+                const uploadData = await readResponse(uploadResponse);
+
+                if (!uploadResponse.ok) {
+                    throw new Error(
+                        uploadData.detail || "Document upload failed."
+                    );
+                }
+
+                setProcessingState(
+                    "Running OCR and structured extraction..."
+                );
+
+                const processingResponse = await fetch(
+                    `/documents/${uploadData.document_id}/process`,
+                    {
+                        method: "POST",
+                    }
+                );
+
+                const processingData = await readResponse(
+                    processingResponse
+                );
+
+                if (!processingResponse.ok) {
+                    throw new Error(
+                        processingData.detail ||
+                        "Document processing failed."
+                    );
+                }
+
+                renderResult(processingData);
+                showSuccess("Document processed successfully.");
+            } catch (error) {
+                showError(
+                    error instanceof Error
+                        ? error.message
+                        : "An unexpected error occurred."
+                );
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = "Process document";
+            }
+        });
+
+        function renderResult(data) {
+            const ocr = data.ocr || {};
+            const extraction = data.extraction || {};
+            const fields = extraction.extracted_data || {};
+            const currency = fields.currency || "";
+
+            setText("result-status", extraction.status || "succeeded");
+            setText("supplier-name", displayValue(fields.supplier_name));
+            setText(
+                "document-type",
+                formatDocumentType(fields.document_type)
+            );
+            setText(
+                "document-number",
+                displayValue(fields.document_number)
+            );
+            setText("issue-date", displayValue(fields.issue_date));
+            setText("due-date", displayValue(fields.due_date));
+            setText("currency", displayValue(fields.currency));
+
+            setText(
+                "subtotal",
+                formatAmount(fields.subtotal, currency)
+            );
+            setText("tax", formatAmount(fields.tax, currency));
+            setText("total", formatAmount(fields.total, currency));
+
+            setText("document-id", `Document ID: ${data.document_id}`);
+            setText(
+                "ocr-engine",
+                `OCR: ${ocr.engine || "Unknown"}`
+            );
+            setText(
+                "ocr-time",
+                `OCR time: ${formatDuration(ocr.processing_time_ms)}`
+            );
+            setText(
+                "extraction-time",
+                `Extraction time: ${formatDuration(
+                    extraction.processing_time_ms
+                )}`
+            );
+
+            setText("ocr-content", ocr.text || "No OCR text available.");
+            setText(
+                "raw-response",
+                JSON.stringify(data, null, 2)
+            );
+
+            resultSection.hidden = false;
+            resultSection.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+        }
+
+        function setProcessingState(message) {
+            submitButton.disabled = true;
+            submitButton.textContent = "Processing...";
+
+            statusMessage.className = "processing";
+            statusMessage.textContent = message;
+        }
+
+        function showSuccess(message) {
+            statusMessage.className = "success";
+            statusMessage.textContent = message;
+        }
+
+        function showError(message) {
+            statusMessage.className = "error";
+            statusMessage.textContent = message;
+            resultSection.hidden = true;
+        }
+
+        function setText(elementId, value) {
+            document.getElementById(elementId).textContent = value;
+        }
+
+        function displayValue(value) {
+            if (
+                value === null ||
+                value === undefined ||
+                value === ""
+            ) {
+                return "Not available";
+            }
+
+            return String(value);
+        }
+
+        function formatDocumentType(value) {
+            if (!value) {
+                return "Not available";
+            }
+
+            return String(value)
+                .replaceAll("_", " ")
+                .replace(/\b\w/g, (letter) => letter.toUpperCase());
+        }
+
+        function formatAmount(value, currency) {
+            if (
+                value === null ||
+                value === undefined ||
+                value === ""
+            ) {
+                return "Not available";
+            }
+
+            const number = Number(value);
+
+            if (!Number.isFinite(number)) {
+                return displayValue(value);
+            }
+
+            const formatted = number.toFixed(2);
+            return currency ? `${currency} ${formatted}` : formatted;
+        }
+
+        function formatDuration(milliseconds) {
+            if (
+                milliseconds === null ||
+                milliseconds === undefined
+            ) {
+                return "Not available";
+            }
+
+            if (milliseconds < 1000) {
+                return `${milliseconds} ms`;
+            }
+
+            return `${(milliseconds / 1000).toFixed(1)} s`;
+        }
+
+        async function readResponse(response) {
+            try {
+                return await response.json();
+            } catch {
+                return {};
+            }
+        }
+    </script>
+</body>
+</html>
