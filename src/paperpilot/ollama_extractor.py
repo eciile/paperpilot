@@ -4,16 +4,17 @@ from paperpilot.extraction_schemas import FinancialDocumentExtractionV1
 from paperpilot.extractor import ExtractionError
 
 SYSTEM_PROMPT = """
-Extract financial document information from OCR text.
+Extract financial document data from OCR text using the required schema.
 
 Rules:
-- Use only information explicitly present in the OCR text.
-- Do not guess or invent missing information.
-- Return null for fields that cannot be found.
-- Use ISO dates in YYYY-MM-DD format.
-- Use three-letter currency codes such as EUR, USD, or GBP.
-- Classify the document as invoice, receipt, utility_bill, or unknown.
-""".strip() 
+- Use only information supported by the text; otherwise return null.
+- Convert dates to YYYY-MM-DD and monetary values to numbers.
+- Preserve document identifiers, including prefixes such as #.
+- Match labelled subtotal, tax, and total values, not line-item prices.
+- Return an ISO currency code only when explicit or clearly indicated by location
+  and symbol, such as Singapore with $ meaning SGD.
+- Do not include explanations or extra fields.
+""".strip()
 
 class StructuredModel(Protocol):
     "minimal structured_model interface required by the adapter"
@@ -85,13 +86,13 @@ class OllamaStructuredExtractor:
 
         try:
             chat_model = ChatOllama(
-                model=self._model_name,
-                base_url=self._base_url,
+                model=self.model_name,
+                base_url=self.base_url,
                 temperature=0.0,
             )
             self.structured_model = (chat_model.with_structured_output(
                 FinancialDocumentExtractionV1,
-                method="jspn_schema"
+                method="json_schema"
                 ))
         except Exception as exc:
             raise ExtractionError("Ollama structured model could not be initialized.") from exc

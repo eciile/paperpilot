@@ -88,6 +88,10 @@ ALLOWED_CONTENT_TYPES = {
 
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 
+STATIC_DIRECTORY = (
+    FileSystemPath(__file__).resolve().parent
+    / "static"
+)
 
 app = FastAPI(
     title="PaperPilot",
@@ -97,6 +101,16 @@ app = FastAPI(
     ),
 )
 
+@app.get(
+    "/",
+    response_class=FileResponse,
+    include_in_schema=False,
+)
+def get_homepage() -> FileResponse:
+    """Return the PaperPilot browser interface."""
+    return FileResponse(
+        STATIC_DIRECTORY / "index.html"
+    )
 
 def build_ocr_result_response(
     result: OcrResult,

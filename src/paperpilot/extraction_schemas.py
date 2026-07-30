@@ -3,11 +3,11 @@
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
-
+from typing import Annotated, Literal
 from pydantic import (
     BaseModel,
     ConfigDict,
+    WithJsonSchema,
     field_validator,
 )
 
@@ -20,6 +20,17 @@ class FinancialDocumentType(StrEnum):
     UTILITY_BILL = "utility_bill"
     UNKNOWN = "unknown"
 
+MoneyAmount = Annotated[
+    Decimal | None,
+    WithJsonSchema(
+        {
+            "anyOf": [
+                {"type": "number"},
+                {"type": "null"},
+            ]
+        }
+    ),
+]
 
 class FinancialDocumentExtractionV1(BaseModel):
     """Version 1 structured extraction for financial documents."""
@@ -40,9 +51,9 @@ class FinancialDocumentExtractionV1(BaseModel):
 
     currency: str | None = None
 
-    subtotal: Decimal | None = None
-    tax: Decimal | None = None
-    total: Decimal | None = None
+    subtotal: MoneyAmount = None
+    tax: MoneyAmount = None
+    total: MoneyAmount = None
 
     @field_validator(
         "supplier_name",
