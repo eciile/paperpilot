@@ -10,8 +10,8 @@ from paperpilot.ocr_engine import (
     OcrOutput,
     build_ocr_output,
 )
-
-
+import logging
+logger = logging.getLogger(__name__)
 SUPPORTED_OCR_CONTENT_TYPES = {
     "application/pdf",
     "image/png",
@@ -86,6 +86,11 @@ class PaddleOcrEngine:
         except OcrEngineError:
             raise
         except Exception as exc:
+            logger.exception(
+                "PaddleOCR failed while processing %s.",
+                document_path,
+            )
+
             raise OcrEngineError(
                 "PaddleOCR could not process the document."
             ) from exc
@@ -114,6 +119,7 @@ class PaddleOcrEngine:
                 use_doc_orientation_classify=False,
                 use_doc_unwarping=False,
                 use_textline_orientation=False,
+                enable_mkldnn=False,
             )
         except Exception as exc:
             raise OcrEngineError(
